@@ -1,7 +1,13 @@
+"use client";
+
+import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Navbar from "@/components/Navbar";
 import WelcomeToast from "@/components/WelcomeToast";
 
 export default function Home() {
+  const { connected } = useWallet();
+
   return (
     <>
       <Navbar />
@@ -9,11 +15,11 @@ export default function Home() {
 
       {/* ─── Background Effects ─── */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        {/* Top-right violet blob */}
         <div className="animate-pulse-glow absolute -top-32 right-0 h-[500px] w-[500px] rounded-full bg-violet-600/20 blur-[128px]" />
-        {/* Bottom-left teal blob */}
-        <div className="animate-pulse-glow absolute -bottom-32 -left-32 h-[400px] w-[400px] rounded-full bg-teal-500/15 blur-[128px]" style={{ animationDelay: "2s" }} />
-        {/* Center subtle glow */}
+        <div
+          className="animate-pulse-glow absolute -bottom-32 -left-32 h-[400px] w-[400px] rounded-full bg-teal-500/15 blur-[128px]"
+          style={{ animationDelay: "2s" }}
+        />
         <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/5 blur-[100px]" />
       </div>
 
@@ -47,32 +53,38 @@ export default function Home() {
             even the auctioneer — until the auction ends.
           </p>
 
-          {/* CTA Button */}
+          {/* CTA Buttons */}
           <div className="animate-fade-in-delay-2 mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <button className="group relative inline-flex h-12 items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-teal-500 px-8 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-violet-500/30">
-              <span>Start Exploring</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="transition-transform group-hover:translate-x-1"
-              >
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-              {/* Shimmer */}
-              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-            </button>
-
-            <span className="text-xs text-gray-500">
-              No bids. No fees. Just explore.
-            </span>
+            {connected ? (
+              <>
+                <Link
+                  href="/create-auction"
+                  className="group relative inline-flex h-12 items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-teal-500 px-8 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-violet-500/30"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                  <span>Create Auction</span>
+                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                </Link>
+                <Link
+                  href="/explore"
+                  className="inline-flex h-12 items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.03] px-8 text-sm font-semibold text-gray-300 transition-all hover:bg-white/[0.06] hover:border-white/[0.15]"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                  <span>Explore Items</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <button className="group relative inline-flex h-12 items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-teal-500 px-8 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-violet-500/30">
+                  <span>Start Exploring</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:translate-x-1"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                </button>
+                <span className="text-xs text-gray-500">
+                  Connect your wallet to get started.
+                </span>
+              </>
+            )}
           </div>
 
           {/* Stats */}

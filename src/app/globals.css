@@ -24,6 +24,7 @@ body {
     opacity: 0;
     transform: translateY(20px);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0);
@@ -34,27 +35,32 @@ body {
   0% {
     opacity: 0;
   }
+
   100% {
     opacity: 1;
   }
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-20px);
   }
 }
 
 @keyframes pulse-glow {
+
   0%,
   100% {
     opacity: 0.4;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.7;
     transform: scale(1.05);
@@ -65,18 +71,23 @@ body {
   .animate-slide-up {
     animation: slide-up 0.5s ease-out;
   }
+
   .animate-fade-in {
     animation: fade-in 0.8s ease-out;
   }
+
   .animate-fade-in-delay {
     animation: fade-in 0.8s ease-out 0.2s both;
   }
+
   .animate-fade-in-delay-2 {
     animation: fade-in 0.8s ease-out 0.4s both;
   }
+
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
+
   .animate-pulse-glow {
     animation: pulse-glow 4s ease-in-out infinite;
   }
@@ -91,4 +102,39 @@ body {
   background: #12121a !important;
   border: 1px solid rgba(139, 92, 246, 0.15) !important;
   border-radius: 1rem !important;
+}
+
+/* ─── Form Inputs ─── */
+.arc-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  color: #ededed;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.arc-input::placeholder {
+  color: #4b5563;
+}
+
+.arc-input:focus {
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.08);
+}
+
+.arc-input option {
+  background: #12121a;
+  color: #ededed;
+}
+
+/* ─── Line Clamp ─── */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
