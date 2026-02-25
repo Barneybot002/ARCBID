@@ -30,6 +30,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
+        {/* ─── Rich Background Layer ─── */}
+        <div className="site-bg" aria-hidden="true" />
         <WalletProvider>{children}</WalletProvider>
       </body>
     </html>

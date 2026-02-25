@@ -31,10 +31,10 @@ function timeRemaining(endTime: string): string {
 
 function statusColor(status: string): string {
     switch (status) {
-        case "active": return "text-teal-400 bg-teal-500/10 border-teal-500/20";
-        case "ended": return "text-gray-400 bg-gray-500/10 border-gray-500/20";
-        case "sold": return "text-violet-400 bg-violet-500/10 border-violet-500/20";
-        default: return "text-gray-400 bg-gray-500/10 border-gray-500/20";
+        case "active": return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        case "ended": return "text-[#555] bg-white/[0.03] border-white/[0.06]";
+        case "sold": return "text-purple-400 bg-purple-500/10 border-purple-500/20";
+        default: return "text-[#555] bg-white/[0.03] border-white/[0.06]";
     }
 }
 
@@ -74,18 +74,18 @@ export default function MyAuctionsPage() {
             <>
                 <Navbar />
                 <div className="pointer-events-none fixed inset-0 overflow-hidden">
-                    <div className="animate-pulse-glow absolute -top-32 right-0 h-[500px] w-[500px] rounded-full bg-violet-600/20 blur-[128px]" />
+                    <div className="animate-pulse-glow absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-purple-600/15 blur-[140px]" />
                 </div>
                 <main className="relative flex min-h-screen flex-col items-center justify-center px-4 pt-16">
                     <div className="text-center">
-                        <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/10 border border-violet-500/20">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-400"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M22 10H2" /></svg>
+                        <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-500/10 border border-purple-500/15">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M22 10H2" /></svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white sm:text-3xl">Connect Your Wallet</h1>
-                        <p className="mt-3 max-w-md text-gray-400">
+                        <p className="mt-3 max-w-md text-[#777]">
                             Please connect your Solana wallet to view your auctions.
                         </p>
-                        <Link href="/" className="mt-6 inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300 transition-colors">
+                        <Link href="/" className="mt-6 inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 transition-colors">
                             ← Back to Home
                         </Link>
                     </div>
@@ -98,8 +98,8 @@ export default function MyAuctionsPage() {
         <>
             <Navbar />
             <div className="pointer-events-none fixed inset-0 overflow-hidden">
-                <div className="animate-pulse-glow absolute -top-32 right-0 h-[500px] w-[500px] rounded-full bg-violet-600/20 blur-[128px]" />
-                <div className="animate-pulse-glow absolute -bottom-32 -left-32 h-[400px] w-[400px] rounded-full bg-teal-500/15 blur-[128px]" style={{ animationDelay: "2s" }} />
+                <div className="animate-pulse-glow absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-purple-600/15 blur-[140px]" />
+                <div className="animate-pulse-glow absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-amber-500/10 blur-[140px]" style={{ animationDelay: "2s" }} />
             </div>
 
             <main className="relative min-h-screen px-4 pt-24 pb-16 sm:px-6 lg:px-8">
@@ -107,13 +107,13 @@ export default function MyAuctionsPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="animate-fade-in text-3xl font-bold text-white sm:text-4xl">My Auctions</h1>
-                            <p className="animate-fade-in-delay mt-2 text-gray-400">
+                            <p className="animate-fade-in-delay mt-2 text-[#777]">
                                 Manage your listed auctions.
                             </p>
                         </div>
                         <Link
                             href="/create-auction"
-                            className="animate-fade-in hidden sm:inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:shadow-violet-500/30"
+                            className="animate-fade-in hidden sm:inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition-all hover:bg-purple-500 hover:shadow-xl hover:shadow-purple-500/25"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                             New Auction
@@ -123,7 +123,7 @@ export default function MyAuctionsPage() {
                     {/* Loading */}
                     {loading && (
                         <div className="mt-16 flex justify-center">
-                            <svg className="h-8 w-8 animate-spin text-violet-400" viewBox="0 0 24 24">
+                            <svg className="h-8 w-8 animate-spin text-purple-400" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                             </svg>
@@ -140,14 +140,14 @@ export default function MyAuctionsPage() {
                     {/* Empty State */}
                     {!loading && !error && auctions.length === 0 && (
                         <div className="mt-16 text-center">
-                            <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+                            <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03] border border-white/[0.04]">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#555]"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
                             </div>
                             <p className="text-lg font-medium text-gray-300">You haven&apos;t created any auctions yet.</p>
-                            <p className="mt-2 text-sm text-gray-500">Create your first sealed-bid auction to get started.</p>
+                            <p className="mt-2 text-sm text-[#555]">Create your first sealed-bid auction to get started.</p>
                             <Link
                                 href="/create-auction"
-                                className="mt-6 inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300 transition-colors"
+                                className="mt-6 inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                                 Create Auction
@@ -161,7 +161,7 @@ export default function MyAuctionsPage() {
                             {auctions.map((auction) => (
                                 <div
                                     key={auction.id}
-                                    className="group overflow-hidden rounded-2xl border border-white/[0.06] bg-[#12121a]/60 backdrop-blur-sm transition-all hover:border-violet-500/20 hover:shadow-lg hover:shadow-violet-500/5"
+                                    className="group overflow-hidden rounded-2xl border border-white/[0.04] bg-[#141414]/60 backdrop-blur-sm transition-all hover:border-purple-500/15 hover:shadow-lg hover:shadow-purple-500/5"
                                 >
                                     {/* Image */}
                                     <div className="aspect-[4/3] overflow-hidden bg-white/[0.02]">
@@ -173,7 +173,7 @@ export default function MyAuctionsPage() {
                                                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                             />
                                         ) : (
-                                            <div className="flex h-full items-center justify-center text-gray-600">
+                                            <div className="flex h-full items-center justify-center text-[#333]">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
                                             </div>
                                         )}
@@ -187,7 +187,7 @@ export default function MyAuctionsPage() {
                                                 {auction.status}
                                             </span>
                                         </div>
-                                        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                                        <div className="mt-3 flex items-center justify-between text-xs text-[#555]">
                                             <span className="flex items-center gap-1">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                                                 {timeRemaining(auction.end_time)}

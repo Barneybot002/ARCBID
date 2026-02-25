@@ -25,20 +25,20 @@ export default function WelcomeToast() {
 
     return (
         <div className="fixed bottom-6 right-6 z-[100] animate-slide-up">
-            <div className="flex items-center gap-3 rounded-2xl border border-violet-500/20 bg-[#12121a]/90 px-5 py-4 shadow-2xl shadow-violet-500/10 backdrop-blur-xl">
+            <div className="flex items-center gap-3 rounded-2xl border border-purple-500/15 bg-[#141414]/90 px-5 py-4 shadow-2xl shadow-purple-500/10 backdrop-blur-xl">
                 {/* Glow dot */}
                 <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-teal-400" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
                 </span>
 
                 <div>
                     <p className="text-sm font-semibold text-white">
                         Welcome to ArcBid
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-[#777]">
                         Connected as{" "}
-                        <span className="font-mono text-violet-400">
+                        <span className="font-mono text-purple-400">
                             {truncatedAddress}
                         </span>
                     </p>
@@ -47,7 +47,7 @@ export default function WelcomeToast() {
                 {/* Close button */}
                 <button
                     onClick={() => setVisible(false)}
-                    className="ml-2 text-gray-500 transition-colors hover:text-white"
+                    className="ml-2 text-[#555] transition-colors hover:text-white"
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
