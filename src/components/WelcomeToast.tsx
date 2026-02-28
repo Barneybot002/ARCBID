@@ -25,44 +25,20 @@ export default function WelcomeToast() {
 
     return (
         <div className="fixed bottom-6 right-6 z-[100] animate-slide-up">
-            <div className="flex items-center gap-3 rounded-2xl border border-purple-500/15 bg-[#141414]/90 px-5 py-4 shadow-2xl shadow-purple-500/10 backdrop-blur-xl">
-                {/* Glow dot */}
+            <div className="flex items-center gap-3 rounded-2xl border border-violet-500/15 bg-[#0a0a0f]/90 px-5 py-4 shadow-2xl shadow-violet-500/10 backdrop-blur-xl">
                 <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-violet-400" />
                 </span>
-
                 <div>
-                    <p className="text-sm font-semibold text-white">
-                        Welcome to ArcBid
-                    </p>
-                    <p className="text-xs text-[#777]">
+                    <p className="text-sm font-semibold text-white">Welcome to ArcBid</p>
+                    <p className="text-xs text-zinc-500">
                         Connected as{" "}
-                        <span className="font-mono text-purple-400">
-                            {truncatedAddress}
-                        </span>
+                        <span className="font-mono text-violet-400">{truncatedAddress}</span>
                     </p>
                 </div>
-
-                {/* Close button */}
-                <button
-                    onClick={() => setVisible(false)}
-                    className="ml-2 text-[#555] transition-colors hover:text-white"
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
+                <button onClick={() => setVisible(false)} className="ml-2 text-zinc-600 transition-colors hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
         </div>

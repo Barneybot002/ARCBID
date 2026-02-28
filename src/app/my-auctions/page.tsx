@@ -31,10 +31,10 @@ function timeRemaining(endTime: string): string {
 
 function statusColor(status: string): string {
     switch (status) {
-        case "active": return "text-amber-400 bg-amber-500/10 border-amber-500/20";
-        case "ended": return "text-[#555] bg-white/[0.03] border-white/[0.06]";
-        case "sold": return "text-purple-400 bg-purple-500/10 border-purple-500/20";
-        default: return "text-[#555] bg-white/[0.03] border-white/[0.06]";
+        case "active": return "text-violet-400 bg-violet-500/10 border-violet-500/20";
+        case "ended": return "text-zinc-500 bg-white/[0.03] border-white/[0.06]";
+        case "sold": return "text-green-400 bg-green-500/10 border-green-500/20";
+        default: return "text-zinc-500 bg-white/[0.03] border-white/[0.06]";
     }
 }
 

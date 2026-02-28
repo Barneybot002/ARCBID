@@ -63,11 +63,8 @@ export default function FeaturedCarousel() {
     const progressRef = useRef(0);
     const lastTickRef = useRef(Date.now());
 
-    // Tick countdowns every second
     const tickCountdowns = useCallback(() => {
-        setCountdowns((prev) =>
-            prev.map((s) => (s > 0 ? s - 1 : 0))
-        );
+        setCountdowns((prev) => prev.map((s) => (s > 0 ? s - 1 : 0)));
     }, []);
 
     useEffect(() => {
@@ -75,31 +72,23 @@ export default function FeaturedCarousel() {
         return () => clearInterval(timer);
     }, [tickCountdowns]);
 
-    // Auto-rotate with progress bar
     useEffect(() => {
         if (paused) return;
         lastTickRef.current = Date.now();
-
         const frame = () => {
             const now = Date.now();
-            const elapsed = now - lastTickRef.current;
-            progressRef.current += elapsed;
+            progressRef.current += now - lastTickRef.current;
             lastTickRef.current = now;
-
             if (progressRef.current >= ROTATE_MS) {
                 progressRef.current = 0;
                 setActive((prev) => (prev + 1) % ITEMS.length);
             }
             setProgress(Math.min(progressRef.current / ROTATE_MS, 1));
         };
-
         intervalRef.current = setInterval(frame, 50);
-        return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        };
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }, [paused]);
 
-    // Reset progress on manual navigation
     const goTo = useCallback((i: number) => {
         progressRef.current = 0;
         setProgress(0);
@@ -111,133 +100,94 @@ export default function FeaturedCarousel() {
     const nextIdx = useMemo(() => wrap(active + 1), [active]);
 
     return (
-        <section className="featured-section-bg relative py-20">
-            <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-                {/* Section Heading */}
+        <section className="relative py-24 px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-5xl">
+                {/* Title */}
                 <div className="mb-14 text-center">
-                    <h2 className="text-2xl font-bold text-white sm:text-3xl">
+                    <span className="mb-3 inline-flex rounded-full border border-violet-500/20 bg-violet-500/8 px-4 py-1.5 text-xs font-medium text-violet-300">
+                        Live Auctions
+                    </span>
+                    <h2 className="font-heading text-3xl font-bold text-white sm:text-4xl">
                         Featured Auctions
                     </h2>
-                    <p className="mt-2 text-sm text-[#666]">
+                    <p className="mt-2 text-sm text-zinc-600">
                         Premium items up for sealed bidding
                     </p>
                 </div>
 
-                {/* ─── Stacked Card Carousel ─── */}
+                {/* Stacked Carousel */}
                 <div className="relative flex items-center justify-center" style={{ minHeight: 420 }}>
-                    {/* Previous card — peeking behind left */}
+                    {/* Prev card */}
                     <div
                         className="absolute z-0 cursor-pointer transition-all duration-700 ease-in-out"
-                        style={{
-                            transform: "translateX(-55%) scale(0.78)",
-                            opacity: 0.35,
-                            filter: "brightness(0.5)",
-                        }}
+                        style={{ transform: "translateX(-55%) scale(0.78)", opacity: 0.3, filter: "brightness(0.4)" }}
                         onClick={() => goTo(prevIdx)}
                     >
-                        <div className="h-[280px] w-[240px] overflow-hidden rounded-3xl border border-white/[0.04] bg-[#161618] p-4 shadow-xl sm:h-[340px] sm:w-[280px]">
+                        <div className="h-[280px] w-[240px] overflow-hidden rounded-2xl border border-white/[0.04] bg-[#0a0a0f] p-5 sm:h-[340px] sm:w-[280px]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={ITEMS[prevIdx].image}
-                                alt={ITEMS[prevIdx].title}
-                                className="h-full w-full object-contain"
-                            />
+                            <img src={ITEMS[prevIdx].image} alt={ITEMS[prevIdx].title} className="h-full w-full object-contain" />
                         </div>
                     </div>
 
-                    {/* Next card — peeking behind right */}
+                    {/* Next card */}
                     <div
                         className="absolute z-0 cursor-pointer transition-all duration-700 ease-in-out"
-                        style={{
-                            transform: "translateX(55%) scale(0.78)",
-                            opacity: 0.35,
-                            filter: "brightness(0.5)",
-                        }}
+                        style={{ transform: "translateX(55%) scale(0.78)", opacity: 0.3, filter: "brightness(0.4)" }}
                         onClick={() => goTo(nextIdx)}
                     >
-                        <div className="h-[280px] w-[240px] overflow-hidden rounded-3xl border border-white/[0.04] bg-[#161618] p-4 shadow-xl sm:h-[340px] sm:w-[280px]">
+                        <div className="h-[280px] w-[240px] overflow-hidden rounded-2xl border border-white/[0.04] bg-[#0a0a0f] p-5 sm:h-[340px] sm:w-[280px]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={ITEMS[nextIdx].image}
-                                alt={ITEMS[nextIdx].title}
-                                className="h-full w-full object-contain"
-                            />
+                            <img src={ITEMS[nextIdx].image} alt={ITEMS[nextIdx].title} className="h-full w-full object-contain" />
                         </div>
                     </div>
 
-                    {/* Active card — front and center */}
+                    {/* Active card */}
                     <div
                         className="relative z-10 transition-all duration-700 ease-in-out"
                         onMouseEnter={() => setPaused(true)}
                         onMouseLeave={() => setPaused(false)}
                     >
-                        <div className="h-[300px] w-[260px] overflow-hidden rounded-3xl border border-purple-500/15 bg-[#161618] p-5 shadow-2xl shadow-purple-500/10 sm:h-[360px] sm:w-[310px]">
+                        <div className="h-[300px] w-[260px] overflow-hidden rounded-2xl border border-violet-500/15 bg-[#0a0a0f]/90 p-6 shadow-2xl shadow-violet-500/5 backdrop-blur-sm sm:h-[360px] sm:w-[310px]">
                             {ITEMS.map((it, i) => (
                                 <div
                                     key={i}
                                     className="absolute inset-0 flex items-center justify-center p-6 transition-opacity duration-700"
-                                    style={{
-                                        opacity: i === active ? 1 : 0,
-                                        pointerEvents: i === active ? "auto" : "none",
-                                    }}
+                                    style={{ opacity: i === active ? 1 : 0, pointerEvents: i === active ? "auto" : "none" }}
                                 >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={it.image}
-                                        alt={it.title}
-                                        className="max-h-full max-w-full object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
-                                    />
+                                    <img src={it.image} alt={it.title} className="max-h-full max-w-full object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.4)]" />
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                {/* ─── Item Info ─── */}
-                <div className="relative z-10 mt-8 text-center">
-                    <span className="inline-flex rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-0.5 text-xs font-medium text-purple-300">
+                {/* Item Info */}
+                <div className="mt-8 text-center">
+                    <span className="inline-flex rounded-full border border-violet-500/20 bg-violet-500/8 px-3 py-0.5 text-xs font-medium text-violet-300">
                         {item.category}
                     </span>
-                    <h3 className="mt-3 text-xl font-semibold text-white sm:text-2xl">
+                    <h3 className="mt-3 font-heading text-xl font-semibold text-white sm:text-2xl">
                         {item.title}
                     </h3>
-                    <div className="mt-2 inline-flex items-center gap-1.5 text-sm text-amber-400">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                        </svg>
+                    <div className="mt-2 inline-flex items-center gap-1.5 text-sm text-violet-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                         {formatCountdown(countdowns[active])}
                     </div>
                 </div>
 
-                {/* ─── Progress Bar ─── */}
+                {/* Progress */}
                 <div className="mx-auto mt-8 h-1 max-w-xs overflow-hidden rounded-full bg-white/[0.06]">
-                    <div
-                        className="h-full rounded-full bg-purple-500 transition-[width] duration-75 ease-linear"
-                        style={{ width: `${progress * 100}%` }}
-                    />
+                    <div className="h-full rounded-full bg-violet-500 transition-[width] duration-75 ease-linear" style={{ width: `${progress * 100}%` }} />
                 </div>
 
-                {/* ─── Dot Navigation ─── */}
+                {/* Dots */}
                 <div className="mt-5 flex items-center justify-center gap-2">
                     {ITEMS.map((_, i) => (
                         <button
                             key={i}
                             onClick={() => goTo(i)}
-                            className={`h-1.5 rounded-full transition-all duration-300 ${i === active
-                                    ? "w-6 bg-purple-500"
-                                    : "w-1.5 bg-white/[0.1] hover:bg-white/[0.2]"
-                                }`}
+                            className={`h-1.5 rounded-full transition-all duration-300 ${i === active ? "w-6 bg-violet-500" : "w-1.5 bg-white/[0.1] hover:bg-white/[0.2]"}`}
                         />
                     ))}
                 </div>
