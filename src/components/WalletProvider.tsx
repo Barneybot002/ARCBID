@@ -20,11 +20,9 @@ export default function WalletProvider({
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
 
   return (
-    // @ts-expect-error React 18 JSX type mismatch with wallet adapter
+    /* @ts-expect-error Server Component */
     <ConnectionProvider endpoint={endpoint}>
-      {/* @ts-expect-error React 18 JSX type mismatch with wallet adapter */}
       <SolanaWalletProvider wallets={wallets} autoConnect>
-        {/* @ts-expect-error React 18 JSX type mismatch with wallet adapter */}
         <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>
     </ConnectionProvider>
