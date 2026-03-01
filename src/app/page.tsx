@@ -5,20 +5,13 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import Navbar from "@/components/Navbar";
 import WelcomeToast from "@/components/WelcomeToast";
 import StarField from "@/components/StarField";
+import OrbitNetwork from "@/components/OrbitNetwork";
 import FeaturedCarousel from "@/components/FeaturedCarousel";
 import FeaturesGrid from "@/components/FeaturesGrid";
 import FAQSection from "@/components/FAQSection";
 import TestimonialSection from "@/components/TestimonialSection";
 import Footer from "@/components/Footer";
 import ScrollReveal from "@/components/ScrollReveal";
-
-const ORBIT_ITEMS = [
-  { image: "/demo-items/macbook.png", size: 48, delay: 0 },
-  { image: "/demo-items/jordan4.png", size: 44, delay: 2 },
-  { image: "/demo-items/ape-pfp.png", size: 40, delay: 4 },
-  { image: "/demo-items/cyberpunk-art.png", size: 42, delay: 6 },
-  { image: "/demo-items/solana-merch.png", size: 38, delay: 8 },
-];
 
 export default function Home() {
   const { connected } = useWallet();
@@ -89,62 +82,22 @@ export default function Home() {
               ) : (
                 <>
                   <button className="group relative inline-flex h-12 items-center gap-2.5 overflow-hidden rounded-full bg-violet-600 px-7 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition-all duration-300 hover:bg-violet-500 hover:shadow-xl hover:shadow-violet-500/25">
-                    Get Started
+                    Create Auction
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:translate-x-0.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                   </button>
                   <button className="inline-flex h-12 items-center gap-2 rounded-full border border-white/[0.1] bg-transparent px-7 text-sm font-semibold text-zinc-300 transition-all hover:bg-white/[0.04] hover:border-white/[0.15]">
-                    Learn More
+                    Explore Items
                   </button>
                 </>
               )}
             </div>
           </div>
 
-          {/* Right — Floating Orbit Items */}
-          <div className="relative mt-16 flex flex-1 items-center justify-center lg:mt-0">
-            <div className="relative h-[320px] w-[320px] sm:h-[400px] sm:w-[400px]">
-              {/* Orbit rings */}
-              <div className="absolute inset-0 rounded-full border border-white/[0.04]" />
-              <div className="absolute inset-8 rounded-full border border-white/[0.03]" />
-              <div className="absolute inset-16 rounded-full border border-white/[0.02]" />
-
-              {/* Center glow */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-20 w-20 rounded-full bg-violet-500/20 blur-2xl" />
-                <div className="absolute h-8 w-8 rounded-full bg-violet-400/30 blur-sm" />
-              </div>
-
-              {/* Orbiting items */}
-              {ORBIT_ITEMS.map((item, i) => {
-                const angle = (360 / ORBIT_ITEMS.length) * i;
-                return (
-                  <div
-                    key={i}
-                    className="absolute left-1/2 top-1/2"
-                    style={{
-                      animation: `orbit ${20 + i * 4}s linear ${item.delay}s infinite`,
-                      animationDirection: i % 2 === 0 ? "normal" : "reverse",
-                    }}
-                  >
-                    <div
-                      className="flex items-center justify-center rounded-xl border border-white/[0.08] bg-[#0a0a0f]/80 p-2 shadow-lg shadow-violet-500/5 backdrop-blur-sm"
-                      style={{
-                        width: item.size,
-                        height: item.size,
-                        transform: `rotate(${-angle}deg)`,
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.image}
-                        alt=""
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Right — Orbit Network Visual */}
+          <div className="relative mt-12 flex flex-1 items-center justify-center lg:mt-0">
+            <div className="h-[480px] w-[480px] sm:h-[600px] sm:w-[600px]">
+              <OrbitNetwork />
             </div>
           </div>
         </div>
