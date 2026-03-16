@@ -15,6 +15,11 @@ interface AuctionItem {
     endTime: string;
     bidCount: number;
     isDemo: boolean;
+    status: string;
+}
+
+function isEnded(item: AuctionItem): boolean {
+    return item.status === "ended" || new Date(item.endTime).getTime() <= Date.now();
 }
 
 /* ─── Demo Items ─── */
@@ -28,6 +33,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 2 * 86400000 + 14 * 3600000).toISOString(),
         bidCount: 12,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-2",
@@ -38,6 +44,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 1 * 86400000 + 8 * 3600000).toISOString(),
         bidCount: 7,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-3",
@@ -48,6 +55,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 5 * 3600000).toISOString(),
         bidCount: 23,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-4",
@@ -58,6 +66,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 3 * 86400000 + 1 * 3600000).toISOString(),
         bidCount: 4,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-5",
@@ -68,6 +77,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 6 * 3600000).toISOString(),
         bidCount: 15,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-6",
@@ -78,6 +88,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 4 * 86400000).toISOString(),
         bidCount: 9,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-7",
@@ -88,6 +99,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 12 * 3600000).toISOString(),
         bidCount: 18,
         isDemo: true,
+        status: "active",
     },
     {
         id: "demo-8",
@@ -98,6 +110,7 @@ const DEMO_ITEMS: AuctionItem[] = [
         endTime: new Date(Date.now() + 1 * 86400000).toISOString(),
         bidCount: 6,
         isDemo: true,
+        status: "active",
     },
 ];
 
@@ -152,7 +165,7 @@ export default function ExplorePage() {
                 const { data, error } = await supabase
                     .from("auctions")
                     .select("id, title, image_urls, category, seller_wallet, end_time, bid_count, status")
-                    .eq("status", "active");
+                    .in("status", ["active", "ended"]);
 
                 const realItems: AuctionItem[] = [];
                 if (!error && data) {
@@ -166,16 +179,13 @@ export default function ExplorePage() {
                             endTime: a.end_time,
                             bidCount: a.bid_count || 0,
                             isDemo: false,
+                            status: a.status || "active",
                         });
                     }
                 }
 
-                if (realItems.length < 8) {
-                    const needed = DEMO_ITEMS.slice(0, 8 - realItems.length);
-                    setItems([...realItems, ...needed]);
-                } else {
-                    setItems(realItems);
-                }
+                // Always show real auctions + all demo items
+                setItems([...realItems, ...DEMO_ITEMS]);
             } catch {
                 setItems(DEMO_ITEMS);
             } finally {
@@ -198,7 +208,10 @@ export default function ExplorePage() {
                     i.category.toLowerCase().includes(q)
             );
         }
-        return result;
+        // Sort: active first (by end_time asc), ended at bottom
+        const active = result.filter((i) => !isEnded(i)).sort((a, b) => new Date(a.endTime).getTime() - new Date(b.endTime).getTime());
+        const ended = result.filter((i) => isEnded(i));
+        return { active, ended };
     }, [items, activeCategory, search]);
 
     function handleCategory(cat: string) {
@@ -323,63 +336,98 @@ export default function ExplorePage() {
                         <div className="flex items-center justify-center py-20">
                             <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500/30 border-t-violet-500" />
                         </div>
-                    ) : filtered.length === 0 ? (
+                    ) : filtered.active.length === 0 && filtered.ended.length === 0 ? (
                         <div className="py-20 text-center">
                             <p className="text-zinc-600">No auctions found.</p>
                         </div>
                     ) : (
-                        <div key={animKey} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                            {filtered.map((item, i) => (
-                                <Link
-                                    key={item.id}
-                                    href={`/auction/${item.id}`}
-                                    className="card-stagger group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02] backdrop-blur-md transition-all duration-300 hover:border-violet-500/30 hover:scale-[1.03] hover:shadow-[0_8px_30px_rgba(124,58,237,0.12)]"
-                                    style={{ animationDelay: `${i * 0.07}s` }}
-                                >
-                                    {/* Image */}
-                                    <div className="relative aspect-[4/3] overflow-hidden">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={item.image}
-                                            alt={item.title}
-                                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                        />
-                                        {/* Demo badge */}
-                                        {item.isDemo && (
-                                            <span className="absolute left-3 top-3 rounded-md bg-zinc-900/80 px-2 py-0.5 text-[10px] font-medium text-zinc-400 backdrop-blur-sm">
-                                                Demo
-                                            </span>
-                                        )}
-                                        {/* Category badge */}
-                                        <span className="absolute right-3 top-3 rounded-full border border-violet-500/20 bg-violet-500/15 px-2.5 py-0.5 text-[10px] font-medium text-violet-300 backdrop-blur-sm">
-                                            {item.category}
-                                        </span>
-                                    </div>
-
-                                    {/* Info */}
-                                    <div className="p-4">
-                                        <h3 className="font-heading text-sm font-semibold text-white line-clamp-1 group-hover:text-violet-200 transition-colors">
-                                            {item.title}
-                                        </h3>
-
-                                        <div className="mt-2 flex items-center gap-1.5 text-xs text-zinc-600">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                            <span className="font-mono">{item.seller}</span>
-                                        </div>
-
-                                        <div className="mt-3 flex items-center justify-between">
-                                            <div className="flex items-center gap-1.5 text-xs text-violet-400">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                                                {timeRemaining(item.endTime)}
+                        <div key={animKey}>
+                            {/* Active auctions */}
+                            {filtered.active.length > 0 && (
+                                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                                    {filtered.active.map((item, i) => (
+                                        <Link
+                                            key={item.id}
+                                            href={`/auction/${item.id}`}
+                                            className="card-stagger group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02] backdrop-blur-md transition-all duration-300 hover:border-violet-500/30 hover:scale-[1.03] hover:shadow-[0_8px_30px_rgba(124,58,237,0.12)]"
+                                            style={{ animationDelay: `${i * 0.07}s` }}
+                                        >
+                                            <div className="relative aspect-[4/3] overflow-hidden">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={item.image} alt={item.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                {item.isDemo && (
+                                                    <span className="absolute left-3 top-3 rounded-md bg-zinc-900/80 px-2 py-0.5 text-[10px] font-medium text-zinc-400 backdrop-blur-sm">Demo</span>
+                                                )}
+                                                <span className="absolute right-3 top-3 rounded-full border border-violet-500/20 bg-violet-500/15 px-2.5 py-0.5 text-[10px] font-medium text-violet-300 backdrop-blur-sm">{item.category}</span>
                                             </div>
-                                            <div className="flex items-center gap-1 text-xs text-zinc-500">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-                                                {item.bidCount} bids
+                                            <div className="p-4">
+                                                <h3 className="font-heading text-sm font-semibold text-white line-clamp-1 group-hover:text-violet-200 transition-colors">{item.title}</h3>
+                                                <div className="mt-2 flex items-center gap-1.5 text-xs text-zinc-600">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                                    <span className="font-mono">{item.seller}</span>
+                                                </div>
+                                                <div className="mt-3 flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5 text-xs text-violet-400">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                                        {timeRemaining(item.endTime)}
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-xs text-zinc-500">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                                                        {item.bidCount} bids
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Ended auctions divider + grid */}
+                            {filtered.ended.length > 0 && (
+                                <>
+                                    <div className="my-8 flex items-center gap-4">
+                                        <div className="h-px flex-1 bg-white/[0.06]" />
+                                        <span className="text-xs font-medium uppercase tracking-wider text-zinc-600">Ended Auctions</span>
+                                        <div className="h-px flex-1 bg-white/[0.06]" />
                                     </div>
-                                </Link>
-                            ))}
+                                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                                        {filtered.ended.map((item, i) => (
+                                            <Link
+                                                key={item.id}
+                                                href={`/auction/${item.id}`}
+                                                className="card-stagger group relative overflow-hidden rounded-2xl border border-white/[0.05] bg-white/[0.01] opacity-60 backdrop-blur-md transition-all duration-300 hover:opacity-80"
+                                                style={{ animationDelay: `${(filtered.active.length + i) * 0.07}s` }}
+                                            >
+                                                <div className="relative aspect-[4/3] overflow-hidden">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img src={item.image} alt={item.title} className="h-full w-full object-cover grayscale" />
+                                                    {item.isDemo && (
+                                                        <span className="absolute left-3 top-3 rounded-md bg-zinc-900/80 px-2 py-0.5 text-[10px] font-medium text-zinc-400 backdrop-blur-sm">Demo</span>
+                                                    )}
+                                                    <span className="absolute right-3 top-3 rounded-full border border-zinc-500/20 bg-zinc-500/15 px-2.5 py-0.5 text-[10px] font-medium text-zinc-500 backdrop-blur-sm">{item.category}</span>
+                                                </div>
+                                                <div className="p-4">
+                                                    <h3 className="font-heading text-sm font-semibold text-zinc-400 line-clamp-1">{item.title}</h3>
+                                                    <div className="mt-2 flex items-center gap-1.5 text-xs text-zinc-700">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                                        <span className="font-mono">{item.seller}</span>
+                                                    </div>
+                                                    <div className="mt-3 flex items-center justify-between">
+                                                        <div className="flex items-center gap-1.5 text-xs text-zinc-600">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                                            Ended
+                                                        </div>
+                                                        <div className="flex items-center gap-1 text-xs text-zinc-600">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                                                            {item.bidCount} bids
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
