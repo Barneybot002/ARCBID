@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
 
@@ -25,7 +26,7 @@ interface AuctionData {
 interface BidRow {
     id: string;
     bidder_wallet: string;
-    amount: number;
+    bid_amount: number;
     created_at: string;
 }
 
@@ -87,6 +88,11 @@ export default function AuctionDetailPage() {
     const [, setTick] = useState(0);
     const [copied, setCopied] = useState(false);
     const [tooltipOpen, setTooltipOpen] = useState(false);
+    const [bidAmount, setBidAmount] = useState("");
+    const [bidError, setBidError] = useState("");
+    const [bidSubmitting, setBidSubmitting] = useState(false);
+    const [bidSuccess, setBidSuccess] = useState(false);
+    const { publicKey, connected } = useWallet();
 
     // Tick every second for countdown
     useEffect(() => {
@@ -112,7 +118,7 @@ export default function AuctionDetailPage() {
 
             const { data: bidData } = await supabase
                 .from("bids")
-                .select("id, bidder_wallet, amount, created_at")
+                .select("*")
                 .eq("auction_id", auctionId)
                 .order("created_at", { ascending: false });
             setBids((bidData as BidRow[]) || []);
@@ -129,6 +135,70 @@ export default function AuctionDetailPage() {
         copyText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
+    }
+
+    async function handlePlaceBid() {
+        if (!publicKey || !auction) return;
+        setBidError("");
+        setBidSuccess(false);
+
+        const amount = parseFloat(bidAmount);
+        if (!bidAmount || isNaN(amount) || amount <= 0) {
+            setBidError("Please enter a valid bid amount greater than zero.");
+            return;
+        }
+        if (auction.reserve_price && amount < auction.reserve_price) {
+            setBidError(`Bid must be at least ${auction.reserve_price} SOL.`);
+            return;
+        }
+
+        setBidSubmitting(true);
+        try {
+            // Insert bid
+            console.log('Bid data:', {
+                auction_id: auctionId,
+                bidder_wallet: publicKey.toString(),
+                bid_amount: parseFloat(bidAmount)
+            });
+            const { data: newBid, error: bidErr } = await supabase
+                .from("bids")
+                .insert({
+                    auction_id: auctionId,
+                    bidder_wallet: publicKey.toString(),
+                    bid_amount: amount,
+                })
+                .select("*")
+                .single();
+
+            if (bidErr) {
+                console.log('Supabase error:', bidErr);
+                throw bidErr;
+            }
+
+            // Increment bid_count
+            await supabase.rpc("increment_bid_count", { auction_id_input: auctionId }).then(async ({ error: rpcErr }) => {
+                if (rpcErr) {
+                    // Fallback: manual update
+                    await supabase
+                        .from("auctions")
+                        .update({ bid_count: (auction.bid_count || 0) + 1 })
+                        .eq("id", auctionId);
+                }
+            });
+
+            // Update local state immediately
+            if (newBid) {
+                setBids((prev) => [newBid as BidRow, ...prev]);
+            }
+            setAuction((prev) => prev ? { ...prev, bid_count: prev.bid_count + 1 } : prev);
+            setBidAmount("");
+            setBidSuccess(true);
+            setTimeout(() => setBidSuccess(false), 4000);
+        } catch {
+            setBidError("Something went wrong, please try again.");
+        } finally {
+            setBidSubmitting(false);
+        }
     }
 
     /* ─── Render ─── */
@@ -323,15 +393,62 @@ export default function AuctionDetailPage() {
                                 </div>
                             </div>
 
-                            {/* Action Area */}
+                            {/* Action Area — Bid Input */}
                             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 backdrop-blur-md">
-                                <button disabled className="w-full cursor-not-allowed rounded-full bg-violet-600/30 py-3.5 text-sm font-semibold text-violet-300/60">
-                                    Bidding Coming Soon
-                                </button>
-                                <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-zinc-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                                    Sealed bids powered by Arcium — your bid amount is fully encrypted.
-                                </p>
+                                {!isActive ? (
+                                    <div className="text-center">
+                                        <p className="text-sm font-medium text-zinc-500">This auction has ended.</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <label className="mb-1.5 block text-xs font-medium text-zinc-500">Your Bid (SOL)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="Enter bid amount"
+                                            value={bidAmount}
+                                            onChange={(e) => { setBidAmount(e.target.value); setBidError(""); setBidSuccess(false); }}
+                                            disabled={!connected || bidSubmitting}
+                                            className="w-full rounded-xl border border-white/[0.06] bg-[#0a0a0f]/80 px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-all duration-300 focus:border-violet-500/40 focus:shadow-[0_0_15px_rgba(124,58,237,0.15)] focus:ring-1 focus:ring-violet-500/25 disabled:opacity-50"
+                                        />
+                                        {auction.reserve_price && (
+                                            <p className="mt-1.5 text-xs text-zinc-600">Minimum bid: {auction.reserve_price} SOL</p>
+                                        )}
+                                        {bidError && (
+                                            <p className="mt-2 text-xs text-red-400">{bidError}</p>
+                                        )}
+                                        {bidSuccess && (
+                                            <p className="mt-2 flex items-center gap-1.5 text-xs text-green-400">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                Bid placed — your bid is sealed 🔒
+                                            </p>
+                                        )}
+                                        <button
+                                            onClick={handlePlaceBid}
+                                            disabled={!connected || bidSubmitting}
+                                            className={`mt-3 w-full rounded-full py-3.5 text-sm font-semibold transition-all duration-300 ${connected
+                                                ? "bg-gradient-to-r from-violet-600 to-violet-500 text-white shadow-lg shadow-violet-500/20 hover:shadow-xl hover:shadow-violet-500/30 hover:from-violet-500 hover:to-violet-400"
+                                                : "cursor-not-allowed bg-violet-600/20 text-violet-300/40"
+                                                } disabled:opacity-60`}
+                                        >
+                                            {bidSubmitting ? (
+                                                <span className="inline-flex items-center gap-2">
+                                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                    Placing bid...
+                                                </span>
+                                            ) : !connected ? (
+                                                "Connect Wallet to Bid"
+                                            ) : (
+                                                "Place Bid"
+                                            )}
+                                        </button>
+                                        <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-zinc-600">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                            Sealed bids powered by Arcium — your bid amount is fully encrypted.
+                                        </p>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
