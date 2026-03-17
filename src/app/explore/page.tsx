@@ -222,8 +222,12 @@ export default function ExplorePage() {
                     i.category.toLowerCase().includes(q)
             );
         }
-        // Sort: active first (by end_time asc), ended at bottom
-        const active = result.filter((i) => !isEnded(i)).sort((a, b) => new Date(a.endTime).getTime() - new Date(b.endTime).getTime());
+        // Active first (shuffled randomly), ended at bottom
+        const active = result.filter((i) => !isEnded(i));
+        for (let j = active.length - 1; j > 0; j--) {
+            const k = Math.floor(Math.random() * (j + 1));
+            [active[j], active[k]] = [active[k], active[j]];
+        }
         const ended = result.filter((i) => isEnded(i));
         return { active, ended };
     }, [items, activeCategory, search]);
