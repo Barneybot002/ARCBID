@@ -169,6 +169,20 @@ export default function ExplorePage() {
 
                 const realItems: AuctionItem[] = [];
                 if (!error && data) {
+                    // Get real bid counts from bids table
+                    const ids = data.map((a) => a.id);
+                    const { data: allBids } = await supabase
+                        .from("bids")
+                        .select("auction_id")
+                        .in("auction_id", ids.length > 0 ? ids : ["__none__"]);
+
+                    const bidCounts: Record<string, number> = {};
+                    if (allBids) {
+                        for (const b of allBids) {
+                            bidCounts[b.auction_id] = (bidCounts[b.auction_id] || 0) + 1;
+                        }
+                    }
+
                     for (const a of data) {
                         realItems.push({
                             id: a.id,
@@ -177,7 +191,7 @@ export default function ExplorePage() {
                             category: a.category || "Other",
                             seller: truncateWallet(a.seller_wallet || ""),
                             endTime: a.end_time,
-                            bidCount: a.bid_count || 0,
+                            bidCount: bidCounts[a.id] || 0,
                             isDemo: false,
                             status: a.status || "active",
                         });

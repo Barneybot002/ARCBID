@@ -114,7 +114,13 @@ export default function AuctionDetailPage() {
                 setNotFound(true);
                 return;
             }
-            setAuction(data as AuctionData);
+            // Get real bid count from bids table
+            const { count: realCount } = await supabase
+                .from("bids")
+                .select("*", { count: "exact", head: true })
+                .eq("auction_id", auctionId);
+
+            setAuction({ ...(data as AuctionData), bid_count: realCount ?? 0 });
 
             const { data: bidData } = await supabase
                 .from("bids")
@@ -175,22 +181,32 @@ export default function AuctionDetailPage() {
                 throw bidErr;
             }
 
-            // Increment bid_count
-            await supabase.rpc("increment_bid_count", { auction_id_input: auctionId }).then(async ({ error: rpcErr }) => {
-                if (rpcErr) {
-                    // Fallback: manual update
-                    await supabase
-                        .from("auctions")
-                        .update({ bid_count: (auction.bid_count || 0) + 1 })
-                        .eq("id", auctionId);
-                }
-            });
+            // Count all bids for this auction and update the auction
+            const { count } = await supabase
+                .from("bids")
+                .select("*", { count: "exact", head: true })
+                .eq("auction_id", auctionId);
 
-            // Update local state immediately
-            if (newBid) {
-                setBids((prev) => [newBid as BidRow, ...prev]);
-            }
-            setAuction((prev) => prev ? { ...prev, bid_count: prev.bid_count + 1 } : prev);
+            await supabase
+                .from("auctions")
+                .update({ bid_count: count })
+                .eq("id", auctionId);
+
+            // Re-fetch auction + bids to update UI with real data
+            const { data: freshAuction } = await supabase
+                .from("auctions")
+                .select("*")
+                .eq("id", auctionId)
+                .single();
+            if (freshAuction) setAuction({ ...(freshAuction as AuctionData), bid_count: count ?? 0 });
+
+            const { data: freshBids } = await supabase
+                .from("bids")
+                .select("*")
+                .eq("auction_id", auctionId)
+                .order("created_at", { ascending: false });
+            setBids((freshBids as BidRow[]) || []);
+
             setBidAmount("");
             setBidSuccess(true);
             setTimeout(() => setBidSuccess(false), 4000);
