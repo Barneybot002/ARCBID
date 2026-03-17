@@ -166,7 +166,7 @@ export default function AuctionDetailPage() {
                 bidder_wallet: publicKey.toString(),
                 bid_amount: parseFloat(bidAmount)
             });
-            const { data: newBid, error: bidErr } = await supabase
+            const { error: bidErr } = await supabase
                 .from("bids")
                 .insert({
                     auction_id: auctionId,
