@@ -15,11 +15,13 @@ const WalletMultiButton = dynamic(
 export default function Navbar() {
     const { publicKey, connected } = useWallet();
     const [hasAuctions, setHasAuctions] = useState(false);
+    const [hasBids, setHasBids] = useState(false);
     const [checking, setChecking] = useState(false);
 
     const checkAuctions = useCallback(async () => {
         if (!publicKey) {
             setHasAuctions(false);
+            setHasBids(false);
             return;
         }
         setChecking(true);
@@ -29,8 +31,15 @@ export default function Navbar() {
                 .select("*", { count: "exact", head: true })
                 .eq("seller_wallet", publicKey.toBase58());
             setHasAuctions((count ?? 0) > 0);
+
+            const { count: bidCount } = await supabase
+                .from("bids")
+                .select("*", { count: "exact", head: true })
+                .eq("bidder_wallet", publicKey.toString());
+            setHasBids((bidCount ?? 0) > 0);
         } catch {
             setHasAuctions(false);
+            setHasBids(false);
         } finally {
             setChecking(false);
         }
@@ -41,6 +50,7 @@ export default function Navbar() {
             checkAuctions();
         } else {
             setHasAuctions(false);
+            setHasBids(false);
         }
     }, [connected, publicKey, checkAuctions]);
 
@@ -88,6 +98,24 @@ export default function Navbar() {
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
                                     <span className="hidden sm:inline">My Auctions</span>
+                                </span>
+                            )}
+
+                            {hasBids ? (
+                                <Link
+                                    href="/my-bids"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/10 px-3 sm:px-4 h-9 text-xs font-medium text-violet-300 transition-all hover:bg-violet-500/15 hover:border-violet-500/40"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                                    <span className="hidden sm:inline">My Bids</span>
+                                </Link>
+                            ) : (
+                                <span
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] px-3 sm:px-4 h-9 text-xs font-medium text-zinc-600 cursor-not-allowed select-none"
+                                    title={checking ? "Checking..." : "No bids yet"}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                                    <span className="hidden sm:inline">My Bids</span>
                                 </span>
                             )}
                         </>
