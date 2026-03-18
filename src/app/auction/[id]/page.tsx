@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -21,6 +21,8 @@ interface AuctionData {
     status: string;
     bid_count: number;
     created_at: string;
+    winner_wallet?: string | null;
+    winning_price?: number | null;
 }
 
 interface BidRow {
@@ -137,6 +139,67 @@ export default function AuctionDetailPage() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    // ── Settlement function ──
+    const settlingRef = useRef(false);
+    const settleAuction = useCallback(async (auctionData: AuctionData) => {
+        if (settlingRef.current) return;
+        if (auctionData.status === "settled" || auctionData.status === "no_winner") return;
+        settlingRef.current = true;
+
+        try {
+            // Fetch all bids ordered by amount desc
+            const { data: allBids } = await supabase
+                .from("bids")
+                .select("*")
+                .eq("auction_id", auctionId)
+                .order("bid_amount", { ascending: false });
+
+            if (!allBids || allBids.length === 0) {
+                // No bids — set no_winner
+                await supabase.from("auctions").update({ status: "no_winner" }).eq("id", auctionId);
+                setAuction((prev) => prev ? { ...prev, status: "no_winner" } : prev);
+                return;
+            }
+
+            // Determine winner
+            const winnerBid = allBids[0];
+            let winningPrice = winnerBid.bid_amount;
+
+            if (auctionData.auction_type === "second_price" && allBids.length > 1) {
+                winningPrice = allBids[1].bid_amount;
+            }
+
+            // Update auction to settled
+            await supabase.from("auctions").update({
+                status: "settled",
+                winner_wallet: winnerBid.bidder_wallet,
+                winning_price: winningPrice,
+            }).eq("id", auctionId);
+
+            // Re-fetch fresh data
+            const { data: fresh } = await supabase.from("auctions").select("*").eq("id", auctionId).single();
+            if (fresh) {
+                const { count: rc } = await supabase.from("bids").select("*", { count: "exact", head: true }).eq("auction_id", auctionId);
+                setAuction({ ...(fresh as AuctionData), bid_count: rc ?? 0 });
+            }
+
+            const { data: freshBids } = await supabase.from("bids").select("*").eq("auction_id", auctionId).order("created_at", { ascending: false });
+            setBids((freshBids as BidRow[]) || []);
+        } catch (err) {
+            console.log("Settlement error:", err);
+        } finally {
+            settlingRef.current = false;
+        }
+    }, [auctionId]);
+
+    // Auto-settle on page load if end_time passed and still active
+    useEffect(() => {
+        if (!auction) return;
+        if (auction.status === "active" && new Date(auction.end_time).getTime() <= Date.now()) {
+            settleAuction(auction);
+        }
+    }, [auction?.status, auction?.end_time, settleAuction]);
+
     function handleCopy(text: string) {
         copyText(text);
         setCopied(true);
@@ -245,9 +308,17 @@ export default function AuctionDetailPage() {
     }
 
     const tr = timeRemainingObj(auction.end_time);
+    const isSettled = auction.status === "settled";
+    const isNoWinner = auction.status === "no_winner";
     const isActive = auction.status === "active" && !tr.ended;
+    const isEnded = !isActive;
     const endDate = new Date(auction.end_time);
     const createDate = auction.created_at ? new Date(auction.created_at) : null;
+
+    // Trigger settlement when countdown reaches zero
+    if (tr.ended && auction.status === "active") {
+        settleAuction(auction);
+    }
 
     const TABS = [
         { key: "description" as const, label: "Description" },
@@ -317,6 +388,45 @@ export default function AuctionDetailPage() {
 
                         {/* ═══ RIGHT — Info ═══ */}
                         <div className="flex flex-col gap-5">
+                            {/* Winner / No-winner Card */}
+                            {isSettled && auction.winner_wallet && (
+                                <div className="rounded-2xl border border-green-500/20 bg-green-500/[0.03] p-5 backdrop-blur-md shadow-[0_0_25px_rgba(34,197,94,0.08)]">
+                                    <div className="flex flex-col items-center text-center">
+                                        <span className="mb-2 text-3xl">🏆</span>
+                                        <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Auction Settled</p>
+                                        <div className="mt-3 w-full space-y-3">
+                                            <div>
+                                                <p className="text-xs text-zinc-600">Winner</p>
+                                                <div className="mt-1 flex items-center justify-center gap-2">
+                                                    <span className="font-mono text-sm text-green-300">{truncate(auction.winner_wallet, 4)}</span>
+                                                    <button onClick={() => handleCopy(auction.winner_wallet!)} className="text-zinc-600 transition hover:text-green-400">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-zinc-600">Winning Price</p>
+                                                <p className="mt-1 font-heading text-xl font-bold text-white">{auction.winning_price?.toFixed(4)} SOL</p>
+                                            </div>
+                                            {publicKey && auction.winner_wallet === publicKey.toString() && (
+                                                <p className="text-sm text-green-400">🎉 You won this auction!</p>
+                                            )}
+                                            {publicKey && auction.seller_wallet === publicKey.toString() && auction.winner_wallet !== publicKey.toString() && (
+                                                <p className="text-sm text-zinc-500">Your auction has been settled.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isNoWinner && (
+                                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 backdrop-blur-md">
+                                    <div className="flex flex-col items-center text-center">
+                                        <p className="text-sm text-zinc-500">Auction ended with no bids placed.</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Title + badges */}
                             <div>
                                 <h1 className="font-heading text-2xl font-bold text-white sm:text-3xl">{auction.title}</h1>
@@ -356,9 +466,9 @@ export default function AuctionDetailPage() {
                                 {/* Status + Countdown */}
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className={`inline-block h-2 w-2 rounded-full ${isActive ? "bg-green-400 animate-pulse" : "bg-zinc-500"}`} />
-                                        <span className={`text-xs font-medium ${isActive ? "text-green-400" : "text-zinc-500"}`}>
-                                            {isActive ? "Active" : "Ended"}
+                                        <span className={`inline-block h-2 w-2 rounded-full ${isActive ? "bg-green-400 animate-pulse" : isSettled ? "bg-green-400" : "bg-zinc-500"}`} />
+                                        <span className={`text-xs font-medium ${isActive ? "text-green-400" : isSettled ? "text-green-400" : "text-zinc-500"}`}>
+                                            {isActive ? "Active" : isSettled ? "Settled" : isNoWinner ? "No Winner" : "Ended"}
                                         </span>
                                     </div>
                                 </div>
@@ -411,7 +521,7 @@ export default function AuctionDetailPage() {
 
                             {/* Action Area — Bid Input */}
                             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 backdrop-blur-md">
-                                {!isActive ? (
+                                {isEnded ? (
                                     <div className="text-center">
                                         <p className="text-sm font-medium text-zinc-500">This auction has ended.</p>
                                     </div>
@@ -562,7 +672,7 @@ export default function AuctionDetailPage() {
             <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.06] bg-[#050505]/90 backdrop-blur-md">
                 <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 sm:px-6">
                     {[
-                        { label: "Status", value: isActive ? "Active" : "Ended" },
+                        { label: "Status", value: isActive ? "Active" : isSettled ? "Settled" : isNoWinner ? "No Winner" : "Ended" },
                         { label: "Time Left", value: tr.ended ? "Ended" : `${tr.d}d ${tr.h}h ${tr.m}m ${tr.s}s` },
                         { label: "Total Bids", value: String(auction.bid_count) },
                         { label: "Type", value: auctionTypeLabel(auction.auction_type) },
