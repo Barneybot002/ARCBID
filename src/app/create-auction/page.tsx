@@ -3,14 +3,18 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
 import { supabase } from "@/lib/supabase";
+import { getProgram, solToLamports, connection } from "@/lib/program";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 
 const CATEGORIES = ["Electronics", "Collectibles", "Fashion", "Gaming", "Art", "Other"];
 const AUCTION_TYPES = [
-    { value: "first_price", label: "First Price" },
-    { value: "second_price", label: "Second Price / Vickrey" },
+    { value: "first_price", label: "First Price", onChain: 0 },
+    { value: "second_price", label: "Second Price / Vickrey", onChain: 1 },
 ];
 const DURATIONS = [
     { value: 12, label: "12 Hours" },
@@ -21,6 +25,7 @@ const DURATIONS = [
 
 export default function CreateAuctionPage() {
     const { publicKey, connected } = useWallet();
+    const anchorWallet = useAnchorWallet();
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,8 +38,10 @@ export default function CreateAuctionPage() {
     const [duration, setDuration] = useState(DURATIONS[1].value);
     const [reservePrice, setReservePrice] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [submittingStep, setSubmittingStep] = useState("");
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+    const [txSignature, setTxSignature] = useState("");
 
     const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []).slice(0, 3);
@@ -53,15 +60,16 @@ export default function CreateAuctionPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!publicKey) return;
+        if (!publicKey || !anchorWallet) return;
         if (!title.trim()) { setError("Title is required."); return; }
         if (photos.length === 0) { setError("Please upload at least one photo."); return; }
 
         setSubmitting(true);
         setError("");
+        setSubmittingStep("Uploading images…");
 
         try {
-            // Upload images
+            // ─── 1. Upload images to Supabase Storage ───
             const imageUrls: string[] = [];
             for (const file of photos) {
                 const ext = file.name.split(".").pop();
@@ -76,10 +84,47 @@ export default function CreateAuctionPage() {
                 imageUrls.push(urlData.publicUrl);
             }
 
-            // Calculate end time
-            const endTime = new Date(Date.now() + duration * 60 * 60 * 1000).toISOString();
+            // ─── 2. Prepare on-chain parameters ───
+            setSubmittingStep("Sending transaction to Solana…");
 
-            // Insert auction
+            const uuid = crypto.randomUUID().replace(/-/g, '').slice(0, 32);
+            const endTimeUnix = Math.floor(Date.now() / 1000) + duration * 3600;
+            const auctionTypeObj = AUCTION_TYPES.find((t) => t.value === auctionType)!;
+            const reserveLamports = reservePrice ? solToLamports(parseFloat(reservePrice)) : 0;
+
+            // Derive the auction PDA
+            const [auctionPDA] = PublicKey.findProgramAddressSync(
+                [
+                    Buffer.from("auction"),
+                    publicKey.toBuffer(),
+                    Buffer.from(uuid),
+                ],
+                new PublicKey("66BBhkds8KTby6PH2msQmLr9qDgzosefvTWf6KZRyzaf")
+            );
+
+            // ─── 3. Call on-chain create_auction ───
+            const program = getProgram(anchorWallet, connection);
+            const tx = await program.methods
+                .createAuction(
+                    title.trim(),
+                    auctionTypeObj.onChain,
+                    new BN(endTimeUnix),
+                    new BN(reserveLamports),
+                    uuid
+                )
+                .accounts({
+                    seller: publicKey,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    auctionAccount: auctionPDA as any,
+                    systemProgram: SystemProgram.programId,
+                })
+                .rpc();
+
+            setTxSignature(tx);
+            setSubmittingStep("Saving auction metadata…");
+
+            // ─── 4. Save to Supabase (includes on-chain address) ───
+            const endTime = new Date(endTimeUnix * 1000).toISOString();
             const { error: insertError } = await supabase.from("auctions").insert({
                 title: title.trim(),
                 description: description.trim(),
@@ -92,16 +137,31 @@ export default function CreateAuctionPage() {
                 reserve_price: reservePrice ? parseFloat(reservePrice) : null,
                 status: "active",
                 bid_count: 0,
+                onchain_address: auctionPDA.toBase58(),
             });
 
-            if (insertError) throw new Error(`Insert failed: ${insertError.message}`);
+            if (insertError) throw new Error(`Database save failed: ${insertError.message}`);
 
             setSuccess(true);
-            setTimeout(() => router.push("/"), 2000);
+            setTimeout(() => router.push("/"), 2500);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Something went wrong.");
+            console.error("Create auction error:", err);
+            const message = err instanceof Error ? err.message : "Something went wrong.";
+            // Parse Anchor / Solana errors into user-friendly messages
+            if (message.includes("User rejected")) {
+                setError("Transaction was rejected by wallet.");
+            } else if (message.includes("EndTimeInPast")) {
+                setError("End time must be in the future.");
+            } else if (message.includes("InvalidAuctionType")) {
+                setError("Invalid auction type selected.");
+            } else if (message.includes("insufficient")) {
+                setError("Insufficient SOL balance for transaction fees.");
+            } else {
+                setError(message);
+            }
         } finally {
             setSubmitting(false);
+            setSubmittingStep("");
         }
     };
 
@@ -150,12 +210,24 @@ export default function CreateAuctionPage() {
 
                     {/* Success Toast */}
                     {success && (
-                        <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-5 py-4">
+                        <div className="mt-6 flex items-center gap-3 rounded-xl border border-green-500/20 bg-green-500/10 px-5 py-4">
                             <span className="relative flex h-2.5 w-2.5">
-                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-400" />
                             </span>
-                            <p className="text-sm font-medium text-amber-300">Auction created successfully! Redirecting…</p>
+                            <div>
+                                <p className="text-sm font-medium text-green-300">Auction created on-chain! Redirecting…</p>
+                                {txSignature && (
+                                    <a
+                                        href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mt-1 block text-xs text-green-400/70 underline hover:text-green-300"
+                                    >
+                                        View transaction: {txSignature.slice(0, 8)}…{txSignature.slice(-8)}
+                                    </a>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -176,6 +248,7 @@ export default function CreateAuctionPage() {
                                 onChange={(e) => setTitle(e.target.value)}
                                 placeholder="e.g. Rare Solana Monkey Business #1234"
                                 className="arc-input"
+                                maxLength={100}
                                 required
                             />
                         </div>
@@ -300,7 +373,7 @@ export default function CreateAuctionPage() {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    Creating Auction…
+                                    {submittingStep || "Creating Auction…"}
                                 </span>
                             ) : success ? (
                                 "Auction Created ✓"

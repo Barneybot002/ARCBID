@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
+import { getProgram, solToLamports, connection, PROGRAM_ID } from "@/lib/program";
 
 /* ─── Types ─── */
 interface AuctionData {
@@ -23,6 +26,7 @@ interface AuctionData {
     created_at: string;
     winner_wallet?: string | null;
     winning_price?: number | null;
+    onchain_address?: string | null;
 }
 
 interface BidRow {
@@ -94,7 +98,18 @@ export default function AuctionDetailPage() {
     const [bidError, setBidError] = useState("");
     const [bidSubmitting, setBidSubmitting] = useState(false);
     const [bidSuccess, setBidSuccess] = useState(false);
+    const [bidTxSignature, setBidTxSignature] = useState("");
     const { publicKey, connected } = useWallet();
+    const anchorWallet = useAnchorWallet();
+
+    // Refund / Payment state
+    const [userBid, setUserBid] = useState<BidRow | null>(null);
+    const [refundClaiming, setRefundClaiming] = useState(false);
+    const [refundSuccess, setRefundSuccess] = useState(false);
+    const [refundError, setRefundError] = useState("");
+    const [paymentClaiming, setPaymentClaiming] = useState(false);
+    const [paymentSuccess, setPaymentSuccess] = useState(false);
+    const [paymentError, setPaymentError] = useState("");
 
     // Tick every second for countdown
     useEffect(() => {
@@ -109,7 +124,7 @@ export default function AuctionDetailPage() {
         try {
             const { data, error } = await supabase
                 .from("auctions")
-                .select("*")
+                .select("*, winner_wallet, winning_price")
                 .eq("id", auctionId)
                 .single();
             if (error || !data) {
@@ -139,66 +154,19 @@ export default function AuctionDetailPage() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // ── Settlement function ──
-    const settlingRef = useRef(false);
-    const settleAuction = useCallback(async (auctionData: AuctionData) => {
-        if (settlingRef.current) return;
-        if (auctionData.status === "settled" || auctionData.status === "no_winner") return;
-        settlingRef.current = true;
-
-        try {
-            // Fetch all bids ordered by amount desc
-            const { data: allBids } = await supabase
+    // Check if connected user has placed a bid on this auction
+    useEffect(() => {
+        if (!publicKey || !auctionId) { setUserBid(null); return; }
+        (async () => {
+            const { data } = await supabase
                 .from("bids")
                 .select("*")
                 .eq("auction_id", auctionId)
-                .order("bid_amount", { ascending: false });
-
-            if (!allBids || allBids.length === 0) {
-                // No bids — set no_winner
-                await supabase.from("auctions").update({ status: "no_winner" }).eq("id", auctionId);
-                setAuction((prev) => prev ? { ...prev, status: "no_winner" } : prev);
-                return;
-            }
-
-            // Determine winner
-            const winnerBid = allBids[0];
-            let winningPrice = winnerBid.bid_amount;
-
-            if (auctionData.auction_type === "second_price" && allBids.length > 1) {
-                winningPrice = allBids[1].bid_amount;
-            }
-
-            // Update auction to settled
-            await supabase.from("auctions").update({
-                status: "settled",
-                winner_wallet: winnerBid.bidder_wallet,
-                winning_price: winningPrice,
-            }).eq("id", auctionId);
-
-            // Re-fetch fresh data
-            const { data: fresh } = await supabase.from("auctions").select("*").eq("id", auctionId).single();
-            if (fresh) {
-                const { count: rc } = await supabase.from("bids").select("*", { count: "exact", head: true }).eq("auction_id", auctionId);
-                setAuction({ ...(fresh as AuctionData), bid_count: rc ?? 0 });
-            }
-
-            const { data: freshBids } = await supabase.from("bids").select("*").eq("auction_id", auctionId).order("created_at", { ascending: false });
-            setBids((freshBids as BidRow[]) || []);
-        } catch (err) {
-            console.log("Settlement error:", err);
-        } finally {
-            settlingRef.current = false;
-        }
-    }, [auctionId]);
-
-    // Auto-settle on page load if end_time passed and still active
-    useEffect(() => {
-        if (!auction) return;
-        if (auction.status === "active" && new Date(auction.end_time).getTime() <= Date.now()) {
-            settleAuction(auction);
-        }
-    }, [auction?.status, auction?.end_time, settleAuction]);
+                .eq("bidder_wallet", publicKey.toString())
+                .maybeSingle();
+            setUserBid(data as BidRow | null);
+        })();
+    }, [publicKey, auctionId, bidSuccess]);
 
     function handleCopy(text: string) {
         copyText(text);
@@ -207,9 +175,10 @@ export default function AuctionDetailPage() {
     }
 
     async function handlePlaceBid() {
-        if (!publicKey || !auction) return;
+        if (!publicKey || !auction || !anchorWallet) return;
         setBidError("");
         setBidSuccess(false);
+        setBidTxSignature("");
 
         const amount = parseFloat(bidAmount);
         if (!bidAmount || isNaN(amount) || amount <= 0) {
@@ -223,12 +192,44 @@ export default function AuctionDetailPage() {
 
         setBidSubmitting(true);
         try {
-            // Insert bid
-            console.log('Bid data:', {
-                auction_id: auctionId,
-                bidder_wallet: publicKey.toString(),
-                bid_amount: parseFloat(bidAmount)
-            });
+            const amountLamports = solToLamports(amount);
+
+            // ── 1. On-chain place_bid (if auction has on-chain address) ──
+            let txSig = "";
+            if (auction.onchain_address) {
+                const program = getProgram(anchorWallet, connection);
+                const auctionPDA = new PublicKey(auction.onchain_address);
+
+                // Derive bid PDA
+                const [bidPDA] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("bid"), auctionPDA.toBuffer(), publicKey.toBuffer()],
+                    PROGRAM_ID
+                );
+
+                // Derive escrow PDA
+                const [escrowPDA] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("escrow"), auctionPDA.toBuffer(), publicKey.toBuffer()],
+                    PROGRAM_ID
+                );
+
+                txSig = await program.methods
+                    .placeBid(new BN(amountLamports))
+                    .accounts({
+                        bidder: publicKey,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        auctionAccount: auctionPDA as any,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        bidAccount: bidPDA as any,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        escrowAccount: escrowPDA as any,
+                        systemProgram: SystemProgram.programId,
+                    })
+                    .rpc();
+
+                setBidTxSignature(txSig);
+            }
+
+            // ── 2. Save bid to Supabase ──
             const { error: bidErr } = await supabase
                 .from("bids")
                 .insert({
@@ -272,11 +273,108 @@ export default function AuctionDetailPage() {
 
             setBidAmount("");
             setBidSuccess(true);
-            setTimeout(() => setBidSuccess(false), 4000);
-        } catch {
-            setBidError("Something went wrong, please try again.");
+            setTimeout(() => setBidSuccess(false), 6000);
+        } catch (err) {
+            console.error("Place bid error:", err);
+            const message = err instanceof Error ? err.message : "Something went wrong.";
+            if (message.includes("User rejected")) {
+                setBidError("Transaction was rejected by wallet.");
+            } else if (message.includes("already in use") || message.includes("already been processed") || message.includes("0x0")) {
+                setBidError("You have already placed a bid on this auction. Only one bid per auction is allowed.");
+            } else if (message.includes("AuctionNotActive")) {
+                setBidError("This auction is no longer active.");
+            } else if (message.includes("BidTooLow")) {
+                setBidError("Bid amount is below the reserve price.");
+            } else if (message.includes("insufficient")) {
+                setBidError("Insufficient SOL balance.");
+            } else {
+                setBidError(message);
+            }
         } finally {
             setBidSubmitting(false);
+        }
+    }
+
+    // ── Claim Refund (losing bidder) ──
+    async function handleClaimRefund() {
+        if (!publicKey || !anchorWallet || !auction?.onchain_address) return;
+        setRefundClaiming(true);
+        setRefundError("");
+        try {
+            const program = getProgram(anchorWallet, connection);
+            const auctionPDA = new PublicKey(auction.onchain_address);
+
+            const [bidPDA] = PublicKey.findProgramAddressSync(
+                [Buffer.from("bid"), auctionPDA.toBuffer(), publicKey.toBuffer()],
+                PROGRAM_ID
+            );
+            const [escrowPDA] = PublicKey.findProgramAddressSync(
+                [Buffer.from("escrow"), auctionPDA.toBuffer(), publicKey.toBuffer()],
+                PROGRAM_ID
+            );
+
+            await program.methods
+                .refundBid()
+                .accounts({
+                    bidder: publicKey,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    auctionAccount: auctionPDA as any,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    bidAccount: bidPDA as any,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    escrowAccount: escrowPDA as any,
+                    systemProgram: SystemProgram.programId,
+                })
+                .rpc({ commitment: "confirmed" });
+
+            setRefundSuccess(true);
+        } catch (err) {
+            console.error("Refund error:", err);
+            const msg = err instanceof Error ? err.message : "Something went wrong.";
+            if (msg.includes("User rejected")) setRefundError("Transaction was rejected by wallet.");
+            else if (msg.includes("insufficient")) setRefundError("Insufficient account balance.");
+            else setRefundError(msg);
+        } finally {
+            setRefundClaiming(false);
+        }
+    }
+
+    // ── Claim Payment (seller) ──
+    async function handleClaimPayment() {
+        if (!publicKey || !anchorWallet || !auction?.onchain_address || !auction.winner_wallet) return;
+        setPaymentClaiming(true);
+        setPaymentError("");
+        try {
+            const program = getProgram(anchorWallet, connection);
+            const auctionPDA = new PublicKey(auction.onchain_address);
+            const winnerPubkey = new PublicKey(auction.winner_wallet);
+
+            const [winnerEscrowPDA] = PublicKey.findProgramAddressSync(
+                [Buffer.from("escrow"), auctionPDA.toBuffer(), winnerPubkey.toBuffer()],
+                PROGRAM_ID
+            );
+
+            await program.methods
+                .claimPayment()
+                .accounts({
+                    seller: publicKey,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    auctionAccount: auctionPDA as any,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    escrowAccount: winnerEscrowPDA as any,
+                    systemProgram: SystemProgram.programId,
+                })
+                .rpc({ commitment: "confirmed" });
+
+            setPaymentSuccess(true);
+        } catch (err) {
+            console.error("Payment claim error:", err);
+            const msg = err instanceof Error ? err.message : "Something went wrong.";
+            if (msg.includes("User rejected")) setPaymentError("Transaction was rejected by wallet.");
+            else if (msg.includes("insufficient")) setPaymentError("Insufficient escrow balance.");
+            else setPaymentError(msg);
+        } finally {
+            setPaymentClaiming(false);
         }
     }
 
@@ -315,10 +413,9 @@ export default function AuctionDetailPage() {
     const endDate = new Date(auction.end_time);
     const createDate = auction.created_at ? new Date(auction.created_at) : null;
 
-    // Trigger settlement when countdown reaches zero
-    if (tr.ended && auction.status === "active") {
-        settleAuction(auction);
-    }
+    const isWinner = publicKey && auction.winner_wallet === publicKey.toString();
+    const isSeller = publicKey && auction.seller_wallet === publicKey.toString();
+    const isLosingBidder = publicKey && userBid && !isWinner;
 
     const TABS = [
         { key: "description" as const, label: "Description" },
@@ -408,12 +505,6 @@ export default function AuctionDetailPage() {
                                                 <p className="text-xs text-zinc-600">Winning Price</p>
                                                 <p className="mt-1 font-heading text-xl font-bold text-white">{auction.winning_price?.toFixed(4)} SOL</p>
                                             </div>
-                                            {publicKey && auction.winner_wallet === publicKey.toString() && (
-                                                <p className="text-sm text-green-400">🎉 You won this auction!</p>
-                                            )}
-                                            {publicKey && auction.seller_wallet === publicKey.toString() && auction.winner_wallet !== publicKey.toString() && (
-                                                <p className="text-sm text-zinc-500">Your auction has been settled.</p>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -519,15 +610,72 @@ export default function AuctionDetailPage() {
                                 </div>
                             </div>
 
-                            {/* Action Area — Bid Input */}
+                            {/* Action Area — Bid Input / Refund */}
                             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 backdrop-blur-md">
-                                {isEnded ? (
+                                {isEnded && isSettled && isWinner ? (
+                                    /* Winner sees congratulations */
+                                    <div className="text-center space-y-2">
+                                        <p className="text-sm font-medium text-green-400">🎉 You won this auction!</p>
+                                        <p className="text-xs text-zinc-500">The seller will claim your payment shortly.</p>
+                                    </div>
+                                ) : isEnded && isSettled && isSeller && !paymentSuccess ? (
+                                    /* Seller sees claim payment */
+                                    <div className="text-center space-y-3">
+                                        <p className="text-sm text-zinc-400">Your auction has been settled.</p>
+                                        <button
+                                            onClick={handleClaimPayment}
+                                            disabled={paymentClaiming}
+                                            className="w-full rounded-full bg-gradient-to-r from-green-600 to-emerald-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-500/20 transition-all hover:shadow-xl hover:shadow-green-500/30 disabled:opacity-60"
+                                        >
+                                            {paymentClaiming ? (
+                                                <span className="inline-flex items-center gap-2">
+                                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                    Claiming payment…
+                                                </span>
+                                            ) : "Claim Payment"}
+                                        </button>
+                                        {paymentError && <p className="mt-2 text-xs text-red-400">{paymentError}</p>}
+                                    </div>
+                                ) : isEnded && isSeller && paymentSuccess ? (
+                                    <div className="text-center space-y-2">
+                                        <p className="flex items-center justify-center gap-1.5 text-sm text-green-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                            Payment claimed successfully — SOL transferred to your wallet
+                                        </p>
+                                    </div>
+                                ) : isEnded && isSettled && isLosingBidder && !refundSuccess ? (
+                                    /* Losing bidder sees claim refund */
+                                    <div className="text-center space-y-3">
+                                        <p className="text-sm text-zinc-400">You did not win this auction.</p>
+                                        <p className="text-xs text-zinc-600">Claim your escrowed SOL back to your wallet.</p>
+                                        <button
+                                            onClick={handleClaimRefund}
+                                            disabled={refundClaiming}
+                                            className="w-full rounded-full bg-gradient-to-r from-slate-600 to-zinc-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-500/15 transition-all hover:shadow-xl hover:shadow-slate-500/25 hover:from-slate-500 hover:to-zinc-400 disabled:opacity-60"
+                                        >
+                                            {refundClaiming ? (
+                                                <span className="inline-flex items-center gap-2">
+                                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                    Claiming refund…
+                                                </span>
+                                            ) : "Claim Refund"}
+                                        </button>
+                                        {refundError && <p className="mt-2 text-xs text-red-400">{refundError}</p>}
+                                    </div>
+                                ) : isEnded && refundSuccess ? (
+                                    <div className="text-center space-y-2">
+                                        <p className="flex items-center justify-center gap-1.5 text-sm text-green-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                            Refund claimed successfully — SOL returned to your wallet
+                                        </p>
+                                    </div>
+                                ) : isEnded ? (
                                     <div className="text-center">
                                         <p className="text-sm font-medium text-zinc-500">This auction has ended.</p>
                                     </div>
                                 ) : (
                                     <>
-                                        <label className="mb-1.5 block text-xs font-medium text-zinc-500">Your Bid (SOL)</label>
+                                        <label className="mb-1.5 flex items-center gap-2 text-xs font-medium text-zinc-500">Your Bid (SOL) <span className="text-zinc-600 font-normal">(you can only bid once)</span></label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -545,10 +693,22 @@ export default function AuctionDetailPage() {
                                             <p className="mt-2 text-xs text-red-400">{bidError}</p>
                                         )}
                                         {bidSuccess && (
-                                            <p className="mt-2 flex items-center gap-1.5 text-xs text-green-400">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                                Bid placed — your bid is sealed 🔒
-                                            </p>
+                                            <div className="mt-2">
+                                                <p className="flex items-center gap-1.5 text-xs text-green-400">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    Bid placed on-chain — your bid is sealed 🔒
+                                                </p>
+                                                {bidTxSignature && (
+                                                    <a
+                                                        href={`https://explorer.solana.com/tx/${bidTxSignature}?cluster=devnet`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="mt-1 block text-[10px] text-green-400/60 underline hover:text-green-300"
+                                                    >
+                                                        Tx: {bidTxSignature.slice(0, 8)}…{bidTxSignature.slice(-8)}
+                                                    </a>
+                                                )}
+                                            </div>
                                         )}
                                         <button
                                             onClick={handlePlaceBid}
